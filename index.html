@@ -131,15 +131,18 @@ const FERIES_FALLBACK = [
 function initGrist() {
   const pill = document.getElementById('status-pill');
   if (typeof grist === 'undefined') {
-    pill.textContent = '⬤ Mode démo'; pill.classList.add('demo');
-    loadDemo(); return;
+    pill.textContent = '⬤ Hors Grist'; pill.classList.add('demo');
+    showMessage('Widget non connecté à Grist.<br>Ajoutez ce widget dans une page Grist avec la table <strong>Demande_de_Conges</strong> comme source.');
+    return;
   }
-  grist.ready({ requiredAccess: 'read table' });
+  grist.ready({ requiredAccess: 'full' });
   pill.textContent = '⬤ Connecté'; pill.classList.add('ok');
-  loadAll();
+  // onRecords se déclenche à chaque modification de la table source
+  grist.onRecords(async () => { await loadAll(); });
 }
 
 async function loadAll() {
+  showLoader();
   try {
     const [c, a, f] = await Promise.all([
       grist.docApi.fetchTable('Demande_de_Conges'),
@@ -149,18 +152,11 @@ async function loadAll() {
     allConges = toRows(c);
     allAgents = toRows(a).filter(r => r.Statut === 'En poste');
     allFeries = toRows(f);
-
-    console.log('Congés chargés:', allConges.length);
-    console.log('Exemple congé:', allConges[0]);
-    console.log('Agents chargés:', allAgents.length);
-    console.log('Exemple agent:', allAgents[0]);
-
     buildFilters();
     render();
   } catch(e) {
     console.error('Erreur fetchTable:', e);
-    document.getElementById('status-pill').textContent = '⬤ Erreur: ' + e.message;
-    loadDemo();
+    showMessage('Erreur de chargement : ' + e.message);
   }
 }
 
@@ -178,32 +174,14 @@ function toRows(tbl) {
   return rows;
 }
 
-// ── Démo ──────────────────────────────────────────────────────────────────
-function ts(y,m,d){ return new Date(y,m-1,d).getTime()/1000; }
+function showLoader() {
+  document.getElementById('content').innerHTML =
+    '<div class="loader"><div class="spinner"></div>Chargement…</div>';
+}
 
-function loadDemo() {
-  const y = currentYear;
-  allAgents = [
-    {id:1,Nom:'LALUNG',Prenom:'Sega',Nom_complet:'LALUNG Sega',Statut:'En poste'},
-    {id:2,Nom:'ABENON',Prenom:'Teddy',Nom_complet:'ABENON Teddy',Statut:'En poste'},
-    {id:4,Nom:'MIMOUN',Prenom:'Rachid',Nom_complet:'MIMOUN Rachid',Statut:'En poste'},
-    {id:6,Nom:'VENTORUZZO',Prenom:'Alexandre',Nom_complet:'VENTORUZZO Alexandre',Statut:'En poste'},
-    {id:7,Nom:'DOMINIQUE',Prenom:'Bruno',Nom_complet:'DOMINIQUE Bruno',Statut:'En poste'},
-    {id:8,Nom:'VLAHOS',Prenom:'Ioulios',Nom_complet:'VLAHOS Ioulios',Statut:'En poste'},
-  ];
-  // Colonne Nom dans Demande_de_Conges = Nom_complet de l'agent
-  allConges = [
-    {Nom:'ABENON Teddy', Type_de_Conges:'CA : Congés annuels',         Date_de_debut:ts(y,2,10),Date_de_fin:ts(y,2,14),Statut:'Validée',          Type_de_Demande:'Congés'},
-    {Nom:'LALUNG Sega',  Type_de_Conges:'CA : Congés annuels',         Date_de_debut:ts(y,2,25),Date_de_fin:ts(y,2,27),Statut:'Validée',          Type_de_Demande:'Congés'},
-    {Nom:'VLAHOS Ioulios',Type_de_Conges:'RTT : Aménagement',          Date_de_debut:ts(y,3,3), Date_de_fin:ts(y,3,3), Statut:'Validée',          Type_de_Demande:'Congés'},
-    {Nom:'MIMOUN Rachid',Type_de_Conges:'JF : Journée de Formation',   Date_de_debut:ts(y,1,12),Date_de_fin:ts(y,1,23),Statut:'Validée',          Type_de_Demande:'Congés'},
-    {Nom:'ABENON Teddy', Type_de_Conges:'CA : Congés annuels',         Date_de_debut:ts(y,7,20),Date_de_fin:ts(y,8,1), Statut:'En attente de validation',Type_de_Demande:'Congés'},
-    {Nom:'VENTORUZZO Alexandre',Type_de_Conges:'RTT : Aménagement',    Date_de_debut:ts(y,2,13),Date_de_fin:ts(y,2,13),Statut:'Validée',          Type_de_Demande:'Congés'},
-    {Nom:'LALUNG Sega',  Type_de_Conges:'CA N-1 : Reliquat',           Date_de_debut:ts(y,1,6), Date_de_fin:ts(y,1,8), Statut:'Validée',          Type_de_Demande:'Congés'},
-  ];
-  allFeries = FERIES_FALLBACK.map((d,i)=>({id:i,Date:new Date(d).getTime()/1000}));
-  buildFilters();
-  render();
+function showMessage(html) {
+  document.getElementById('content').innerHTML =
+    `<div class="loader" style="color:var(--muted);text-align:center;font-family:'DM Sans',sans-serif;font-size:.8rem;line-height:1.6">${html}</div>`;
 }
 
 // ── Filtres ────────────────────────────────────────────────────────────────
